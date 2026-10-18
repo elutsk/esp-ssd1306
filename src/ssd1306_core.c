@@ -216,15 +216,16 @@ static esp_err_t validate_cfg(const ssd1306_config_t *cfg) {
     return ESP_OK;
 }
 
-// Common creation for ssd1306_handle_t
-static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_handle_t *out,
+// Common creation for ssd1306_handle_t. The caller owns *dev_out and must
+// release it with ssd1306_del() if the rest of the setup fails.
+static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_bus_t bus,
                             struct ssd1306_t **dev_out) {
-    ESP_RETURN_ON_FALSE(out, ESP_ERR_INVALID_ARG, TAG, "out=NULL");
     ESP_RETURN_ON_ERROR(validate_cfg(cfg), TAG, "bad cfg");
 
     struct ssd1306_t *d = calloc(1, sizeof(*d));
     ESP_RETURN_ON_FALSE(d, ESP_ERR_NO_MEM, TAG, "no memory");
 
+    d->bus    = bus;
     d->width  = cfg->width;
     d->height = cfg->height;
 
@@ -244,46 +245,62 @@ static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_handle_t *out,
         return ESP_ERR_NO_MEM;
     }
 
-    d->font = &ssd1306_font5x7;
+    d->font  = &ssd1306_font5x7;
 
-    *out    = d;
-    if (dev_out)
-        *dev_out = d;
+    *dev_out = d;
     return ESP_OK;
 }
 
 // ----- Public API -----
 esp_err_t ssd1306_new_i2c(const ssd1306_config_t *cfg, ssd1306_handle_t *out) {
-    struct ssd1306_t *d = NULL;
-    ESP_RETURN_ON_ERROR(new_common(cfg, out, &d), TAG, "alloc");
+    ESP_RETURN_ON_FALSE(out, ESP_ERR_INVALID_ARG, TAG, "out=NULL");
+    *out = NULL;
 
-    ESP_RETURN_ON_ERROR(ssd1306_bind_i2c(d, cfg->iface.i2c.port,
-                                         cfg->iface.i2c.addr,
-                                         cfg->iface.i2c.rst_gpio),
-                        TAG, "bind i2c");
+    struct ssd1306_t *d = NULL;
+    ESP_RETURN_ON_ERROR(new_common(cfg, SSD1306_I2C, &d), TAG, "alloc");
+
+    esp_err_t ret = ESP_OK;
+    ESP_GOTO_ON_ERROR(ssd1306_bind_i2c(d, cfg->iface.i2c.port,
+                                       cfg->iface.i2c.addr,
+                                       cfg->iface.i2c.rst_gpio),
+                      fail, TAG, "bind i2c");
     if (d->vt->reset)
-        ESP_RETURN_ON_ERROR(d->vt->reset(d->bus_ctx), TAG, "reset");
-    ESP_RETURN_ON_ERROR(run_init_sequence(d), TAG, "init seq");
+        ESP_GOTO_ON_ERROR(d->vt->reset(d->bus_ctx), fail, TAG, "reset");
+    ESP_GOTO_ON_ERROR(run_init_sequence(d), fail, TAG, "init seq");
 
     d->initialized = true;
+    *out           = d;
     return ESP_OK;
+
+fail:
+    ssd1306_del(d); // releases whatever was set up so far
+    return ret;
 }
 
 esp_err_t ssd1306_new_spi(const ssd1306_config_t *cfg, ssd1306_handle_t *out) {
-    struct ssd1306_t *d = NULL;
-    ESP_RETURN_ON_ERROR(new_common(cfg, out, &d), TAG, "alloc");
+    ESP_RETURN_ON_FALSE(out, ESP_ERR_INVALID_ARG, TAG, "out=NULL");
+    *out = NULL;
 
-    ESP_RETURN_ON_ERROR(
+    struct ssd1306_t *d = NULL;
+    ESP_RETURN_ON_ERROR(new_common(cfg, SSD1306_SPI, &d), TAG, "alloc");
+
+    esp_err_t ret = ESP_OK;
+    ESP_GOTO_ON_ERROR(
         ssd1306_bind_spi(d, cfg->iface.spi.host, cfg->iface.spi.cs_gpio,
                          cfg->iface.spi.dc_gpio, cfg->iface.spi.rst_gpio,
                          cfg->iface.spi.clk_hz),
-        TAG, "bind spi");
+        fail, TAG, "bind spi");
     if (d->vt->reset)
-        ESP_RETURN_ON_ERROR(d->vt->reset(d->bus_ctx), TAG, "reset");
-    ESP_RETURN_ON_ERROR(run_init_sequence(d), TAG, "init seq");
+        ESP_GOTO_ON_ERROR(d->vt->reset(d->bus_ctx), fail, TAG, "reset");
+    ESP_GOTO_ON_ERROR(run_init_sequence(d), fail, TAG, "init seq");
 
     d->initialized = true;
+    *out           = d;
     return ESP_OK;
+
+fail:
+    ssd1306_del(d); // releases whatever was set up so far
+    return ret;
 }
 
 esp_err_t ssd1306_set_font(ssd1306_handle_t h, const ssd1306_font_t *font) {
