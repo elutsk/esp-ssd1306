@@ -217,14 +217,15 @@ static esp_err_t validate_cfg(const ssd1306_config_t *cfg) {
 }
 
 // Common creation for ssd1306_handle_t
-static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_handle_t *out,
-                            struct ssd1306_t **dev_out) {
+static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_bus_t bus,
+                            ssd1306_handle_t *out, struct ssd1306_t **dev_out) {
     ESP_RETURN_ON_FALSE(out, ESP_ERR_INVALID_ARG, TAG, "out=NULL");
     ESP_RETURN_ON_ERROR(validate_cfg(cfg), TAG, "bad cfg");
 
     struct ssd1306_t *d = calloc(1, sizeof(*d));
     ESP_RETURN_ON_FALSE(d, ESP_ERR_NO_MEM, TAG, "no memory");
 
+    d->bus    = bus;
     d->width  = cfg->width;
     d->height = cfg->height;
 
@@ -255,7 +256,7 @@ static esp_err_t new_common(const ssd1306_config_t *cfg, ssd1306_handle_t *out,
 // ----- Public API -----
 esp_err_t ssd1306_new_i2c(const ssd1306_config_t *cfg, ssd1306_handle_t *out) {
     struct ssd1306_t *d = NULL;
-    ESP_RETURN_ON_ERROR(new_common(cfg, out, &d), TAG, "alloc");
+    ESP_RETURN_ON_ERROR(new_common(cfg, SSD1306_I2C, out, &d), TAG, "alloc");
 
     ESP_RETURN_ON_ERROR(ssd1306_bind_i2c(d, cfg->iface.i2c.port,
                                          cfg->iface.i2c.addr,
@@ -271,7 +272,7 @@ esp_err_t ssd1306_new_i2c(const ssd1306_config_t *cfg, ssd1306_handle_t *out) {
 
 esp_err_t ssd1306_new_spi(const ssd1306_config_t *cfg, ssd1306_handle_t *out) {
     struct ssd1306_t *d = NULL;
-    ESP_RETURN_ON_ERROR(new_common(cfg, out, &d), TAG, "alloc");
+    ESP_RETURN_ON_ERROR(new_common(cfg, SSD1306_SPI, out, &d), TAG, "alloc");
 
     ESP_RETURN_ON_ERROR(
         ssd1306_bind_spi(d, cfg->iface.spi.host, cfg->iface.spi.cs_gpio,
