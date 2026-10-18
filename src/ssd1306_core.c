@@ -345,6 +345,41 @@ esp_err_t ssd1306_del(ssd1306_handle_t h) {
     return ESP_OK;
 }
 
+// ----- Power API -----
+
+// Send a short command sequence to an initialized display, under the lock.
+static esp_err_t send_cmds_locked(ssd1306_handle_t h, const uint8_t *cmds,
+                                  size_t n) {
+    struct ssd1306_t *d = h;
+    if (!d)
+        return ESP_ERR_INVALID_STATE;
+
+    LOCK(d);
+    if (!d->initialized) {
+        UNLOCK(d);
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t err = d->vt->send_cmd(d->bus_ctx, cmds, n);
+    UNLOCK(d);
+    return err;
+}
+
+esp_err_t ssd1306_sleep(ssd1306_handle_t h) {
+    static const uint8_t cmds[] = {
+        0xAE,       // DISPLAYOFF
+        0x8D, 0x10, // CHARGEPUMP OFF
+    };
+    return send_cmds_locked(h, cmds, sizeof(cmds));
+}
+
+esp_err_t ssd1306_wake(ssd1306_handle_t h) {
+    static const uint8_t cmds[] = {
+        0x8D, 0x14, // CHARGEPUMP ON
+        0xAF,       // DISPLAYON
+    };
+    return send_cmds_locked(h, cmds, sizeof(cmds));
+}
+
 // ----- Drawing API -----
 
 esp_err_t ssd1306_draw_pixel(ssd1306_handle_t h, int x, int y, bool on) {

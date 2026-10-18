@@ -9,6 +9,7 @@ A minimal and efficient SSD1306 OLED display driver for **ESP-IDF v5.3+**, suppo
 * Automatic or user-managed framebuffer
 * Basic drawing primitives (pixel, line, rectangle, circle)
 * 5x7 ASCII font with optional scaling
+* Sleep and wake (display off with the charge pump disabled)
 * Thread-safe with internal locking
 * MIT licensed
 
@@ -42,6 +43,8 @@ ssd1306_new_i2c(&cfg, &disp);
 ssd1306_clear(disp);
 ssd1306_draw_text(disp, 0, 0, "SSD1306 I2C", true);
 ssd1306_display(disp);
+ssd1306_sleep(disp);
+ssd1306_wake(disp);
 ```
 
 ## Note
