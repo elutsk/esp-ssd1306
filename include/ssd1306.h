@@ -114,6 +114,35 @@ esp_err_t ssd1306_set_font(ssd1306_handle_t h, const ssd1306_font_t *font);
  */
 esp_err_t ssd1306_del(ssd1306_handle_t h);
 
+// ----- Power API -----
+
+/**
+ * @brief Put the display into sleep mode.
+ *
+ * Turns the panel off (AEh) and disables the internal charge pump (8Dh 10h).
+ * The display RAM and all settings are kept, so drawing and
+ * ssd1306_display() still work while sleeping and take effect after
+ * ssd1306_wake().
+ *
+ * @param h Display handle.
+ * @return ESP_OK on success, ESP_ERR_INVALID_STATE if the handle is not
+ *         initialized, or a bus error.
+ */
+esp_err_t ssd1306_sleep(ssd1306_handle_t h);
+
+/**
+ * @brief Wake the display from sleep mode.
+ *
+ * Enables the internal charge pump (8Dh 14h) and turns the panel on (AFh).
+ * Per the SSD1306 datasheet, the segment and common outputs are on about
+ * 100 ms after AFh. This function does not wait for that.
+ *
+ * @param h Display handle.
+ * @return ESP_OK on success, ESP_ERR_INVALID_STATE if the handle is not
+ *         initialized, or a bus error.
+ */
+esp_err_t ssd1306_wake(ssd1306_handle_t h);
+
 // ----- Drawing API -----
 
 /**
